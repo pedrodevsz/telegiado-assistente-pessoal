@@ -17,7 +17,8 @@ public class AssistantService {
     public ChatResponseDTO chat(ChatRequestDTO request) {
 
         String response = openAiService.sendMessage(
-                request.message());
+                request.message(),
+                AssistantInstructions.DEFAULT);
 
         return new ChatResponseDTO(response);
     }

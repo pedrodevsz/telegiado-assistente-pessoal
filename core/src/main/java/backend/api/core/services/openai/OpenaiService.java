@@ -39,12 +39,15 @@ public class OpenaiService {
                 .build();
     }
 
-    public String sendMessage(String message) {
+    public String sendMessage(String message, String instructions) {
         if (message == null || message.isBlank()) {
             throw new IllegalArgumentException("Message cannot be null or blank");
         }
+        if (instructions == null || instructions.isBlank()) {
+            throw new IllegalArgumentException("Instructions cannot be null or blank");
+        }
 
-        OpenAIRequest request = new OpenAIRequest("gpt-5.6-luna", message);
+        OpenAIRequest request = new OpenAIRequest("gpt-5.6-luna", instructions, message);
         OpenAIResponse response;
         try {
             response = restClient
