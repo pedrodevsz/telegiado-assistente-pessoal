@@ -12,6 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import backend.api.core.dtos.openai.OpenAIRequest;
 import backend.api.core.dtos.openai.OpenAIResponse;
+import backend.api.core.services.assistant.AssistantInstructions;
 
 class OpenAIServiceTest {
 
@@ -22,9 +23,10 @@ class OpenAIServiceTest {
         String message = "aspas: \"texto\"\nquebra de linha\\caractere especial";
 
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(
-                new OpenAIRequest("gpt-5.6-luna", message)));
+                new OpenAIRequest("gpt-5.6-luna", AssistantInstructions.DEFAULT, message)));
 
         assertEquals("gpt-5.6-luna", json.get("model").asText());
+        assertEquals(AssistantInstructions.DEFAULT, json.get("instructions").asText());
         assertEquals(message, json.get("input").asText());
     }
 
