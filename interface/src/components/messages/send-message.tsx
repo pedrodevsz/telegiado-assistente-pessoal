@@ -1,14 +1,28 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ArrowRight } from "lucide-react";
-import { sendMessage } from "@/services/send-message";
+import { ArrowRight, Pause, Play, Square } from "lucide-react";
+import { useAudioController } from "@/hooks/use-audio-controller";
+import { sendMessage, type ChatResponse } from "@/services/send-message";
 
 export function SendMessage() {
     const [message, setMessage] = useState("");
     const [response, setResponse] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const {
+        audioError,
+        playbackRate,
+        isGeneratingAudio,
+        isPlaying,
+        isPaused,
+        hasActiveAudio,
+        playAudio,
+        pauseAudio,
+        resumeAudio,
+        changePlaybackRate,
+        cancelAudio,
+    } = useAudioController();
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -22,15 +36,20 @@ export function SendMessage() {
         setLoading(true);
         setError("");
         setResponse("");
+        cancelAudio();
 
+        let data: ChatResponse;
         try {
-            const data = await sendMessage(trimmedMessage);
-            setResponse(data.response);
+            data = await sendMessage(trimmedMessage);
         } catch {
             setError("Não foi possível enviar sua mensagem. Tente novamente.");
+            return;
         } finally {
             setLoading(false);
         }
+
+        setResponse(data.response);
+        void playAudio(data.response);
     }
 
     return (
@@ -63,10 +82,53 @@ export function SendMessage() {
                         {error}
                     </p>
                 )}
-                {response && (
-                    <p className="mt-6 rounded-2xl bg-white p-4 text-zinc-800 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" aria-live="polite">
-                        {response}
+                {isGeneratingAudio && (
+                    <p className="mt-3 text-center text-sm text-zinc-500" aria-live="polite">
+                        Gerando áudio...
                     </p>
+                )}
+                {audioError && (
+                    <p className="mt-3 text-center text-sm text-amber-600" role="status">
+                        {audioError}
+                    </p>
+                )}
+                {response && (
+                    <section className="mt-6 rounded-2xl bg-white p-4 text-zinc-800 shadow-sm dark:bg-zinc-950 dark:text-zinc-100">
+                        <p aria-live="polite">{response}</p>
+                        <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="Controles de áudio">
+                            <button
+                                type="button"
+                                onClick={isPaused ? resumeAudio : pauseAudio}
+                                disabled={!isPlaying && !isPaused}
+                                aria-label={isPaused ? "Continuar áudio" : "Pausar áudio"}
+                                title={isPaused ? "Continuar áudio" : "Pausar áudio"}
+                                className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium transition hover:border-orange-400 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-800"
+                            >
+                                {isPaused ? <Play size={16} /> : <Pause size={16} />}
+                                {isPaused ? "Continuar" : "Pausar"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={changePlaybackRate}
+                                aria-label={`Velocidade atual ${playbackRate}x. Alterar velocidade`}
+                                title="Alterar velocidade de reprodução"
+                                className="inline-flex min-w-16 items-center justify-center rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium transition hover:border-orange-400 hover:text-orange-600 dark:border-zinc-800"
+                            >
+                                {playbackRate}x
+                            </button>
+                            <button
+                                type="button"
+                                onClick={cancelAudio}
+                                disabled={!hasActiveAudio}
+                                aria-label="Cancelar áudio"
+                                title="Cancelar áudio"
+                                className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium transition hover:border-red-400 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-800"
+                            >
+                                <Square size={15} fill="currentColor" />
+                                Cancelar
+                            </button>
+                        </div>
+                    </section>
                 )}
             </form>
         </main>
