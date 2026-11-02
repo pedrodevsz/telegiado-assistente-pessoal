@@ -2,11 +2,36 @@
 
 import { useState, type FormEvent } from "react";
 import { ArrowRight } from "lucide-react";
-import { sendMessage } from "@/services/send-message";
+import {
+    MAX_MESSAGES,
+    MAX_MESSAGE_LENGTH,
+    MAX_TOTAL_LENGTH,
+    sendMessage,
+    type ChatMessage,
+} from "@/services/send-message";
+
+function totalContentLength(messages: ChatMessage[]) {
+    return messages.reduce((total, current) => total + current.content.length, 0);
+}
+
+function prepareHistory(messages: ChatMessage[], userMessage: ChatMessage) {
+    let requestMessages = [...messages, userMessage];
+
+    while (
+        requestMessages.length > 1 &&
+        (requestMessages.length > MAX_MESSAGES ||
+            totalContentLength(requestMessages) > MAX_TOTAL_LENGTH ||
+            requestMessages.some((current) => current.content.length > MAX_MESSAGE_LENGTH))
+    ) {
+        requestMessages = requestMessages.slice(2);
+    }
+
+    return requestMessages;
+}
 
 export function SendMessage() {
     const [message, setMessage] = useState("");
-    const [response, setResponse] = useState("");
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -19,13 +44,24 @@ export function SendMessage() {
             return;
         }
 
+        if (trimmedMessage.length > MAX_MESSAGE_LENGTH) {
+            setError(`A mensagem deve ter no máximo ${MAX_MESSAGE_LENGTH.toLocaleString("pt-BR")} caracteres.`);
+            return;
+        }
+
+        const userMessage: ChatMessage = {
+            role: "user",
+            content: trimmedMessage,
+        };
+        const requestMessages = prepareHistory(messages, userMessage);
+
         setLoading(true);
         setError("");
-        setResponse("");
 
         try {
-            const data = await sendMessage(trimmedMessage);
-            setResponse(data.response);
+            const data = await sendMessage(requestMessages);
+            setMessages([...requestMessages, data.message]);
+            setMessage("");
         } catch {
             setError("Não foi possível enviar sua mensagem. Tente novamente.");
         } finally {
@@ -34,8 +70,35 @@ export function SendMessage() {
     }
 
     return (
-        <main className="flex flex-1 items-center justify-center bg-zinc-50 px-4 font-sans dark:bg-black">
-            <form className="w-full max-w-xl" onSubmit={handleSubmit}>
+        <main className="flex flex-1 flex-col bg-zinc-50 px-4 py-8 font-sans dark:bg-black">
+            <section
+                aria-label="Histórico da conversa"
+                aria-live="polite"
+                className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-3 pb-8"
+            >
+                {messages.length === 0 ? (
+                    <p className="my-auto text-center text-zinc-500 dark:text-zinc-400">
+                        Envie uma mensagem para iniciar a conversa.
+                    </p>
+                ) : (
+                    messages.map((current, index) => (
+                        <article
+                            key={`${index}-${current.role}`}
+                            className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${
+                                current.role === "user"
+                                    ? "ml-auto bg-orange-500 text-white"
+                                    : "mr-auto bg-white text-zinc-800 dark:bg-zinc-950 dark:text-zinc-100"
+                            }`}
+                        >
+                            <span className="sr-only">
+                                {current.role === "user" ? "Você" : "Jarvas"}:
+                            </span>
+                            <p className="whitespace-pre-wrap">{current.content}</p>
+                        </article>
+                    ))
+                )}
+            </section>
+            <form className="mx-auto w-full max-w-2xl" onSubmit={handleSubmit}>
                 <label htmlFor="text" className="mb-3 block text-center text-2xl font-semibold text-orange-600">
                     Digite sua mensagem aqui
                 </label>
@@ -47,6 +110,8 @@ export function SendMessage() {
                         value={message}
                         onChange={(event) => setMessage(event.target.value)}
                         placeholder="Escreva uma mensagem..."
+                        maxLength={MAX_MESSAGE_LENGTH}
+                        disabled={loading}
                         className="min-w-0 flex-1 bg-transparent px-4 py-3 text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
                     />
                     <button
@@ -61,11 +126,6 @@ export function SendMessage() {
                 {error && (
                     <p className="mt-3 text-center text-sm text-red-600" role="alert">
                         {error}
-                    </p>
-                )}
-                {response && (
-                    <p className="mt-6 rounded-2xl bg-white p-4 text-zinc-800 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" aria-live="polite">
-                        {response}
                     </p>
                 )}
             </form>
