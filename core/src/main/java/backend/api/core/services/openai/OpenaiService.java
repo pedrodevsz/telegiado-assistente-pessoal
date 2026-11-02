@@ -11,7 +11,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.List;
 
+import backend.api.core.dtos.chat.ChatMessageDTO;
 import backend.api.core.dtos.openai.OpenAIRequest;
 import backend.api.core.dtos.openai.OpenAIResponse;
 
@@ -39,15 +41,8 @@ public class OpenaiService {
                 .build();
     }
 
-    public String sendMessage(String message, String instructions) {
-        if (message == null || message.isBlank()) {
-            throw new IllegalArgumentException("Message cannot be null or blank");
-        }
-        if (instructions == null || instructions.isBlank()) {
-            throw new IllegalArgumentException("Instructions cannot be null or blank");
-        }
-
-        OpenAIRequest request = new OpenAIRequest("gpt-5.6-luna", instructions, message);
+    public String sendMessages(List<ChatMessageDTO> messages, String instructions) {
+        OpenAIRequest request = createRequest(messages, instructions);
         OpenAIResponse response;
         try {
             response = restClient
@@ -73,6 +68,22 @@ public class OpenaiService {
         }
 
         return extractText(response);
+    }
+
+    static OpenAIRequest createRequest(List<ChatMessageDTO> messages, String instructions) {
+        if (messages == null || messages.isEmpty()) {
+            throw new IllegalArgumentException("Messages cannot be null or empty");
+        }
+        if (instructions == null || instructions.isBlank()) {
+            throw new IllegalArgumentException("Instructions cannot be null or blank");
+        }
+
+        List<OpenAIRequest.Message> input = messages.stream()
+                .map(message -> new OpenAIRequest.Message(
+                        message.role().apiValue(),
+                        message.content()))
+                .toList();
+        return new OpenAIRequest("gpt-5.6-luna", instructions, input);
     }
 
     static String extractText(OpenAIResponse response) {

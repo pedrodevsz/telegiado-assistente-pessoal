@@ -1,6 +1,7 @@
 package backend.api.core.services.openai;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
@@ -10,8 +11,9 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import backend.api.core.dtos.openai.OpenAIRequest;
 import backend.api.core.dtos.openai.OpenAIResponse;
+import backend.api.core.dtos.chat.ChatMessageDTO;
+import backend.api.core.dtos.chat.ChatRole;
 import backend.api.core.services.assistant.AssistantInstructions;
 
 class OpenAIServiceTest {
@@ -19,15 +21,38 @@ class OpenAIServiceTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void serializesSpecialCharactersWithoutChangingTheMessage() throws Exception {
-        String message = "aspas: \"texto\"\nquebra de linha\\caractere especial";
+    void serializesConversationInOrderWithoutChangingMessages() throws Exception {
+        List<ChatMessageDTO> messages = List.of(
+                new ChatMessageDTO(ChatRole.USER, "aspas: \"texto\"\nquebra de linha\\caractere especial"),
+                new ChatMessageDTO(ChatRole.ASSISTANT, "Resposta anterior"),
+                new ChatMessageDTO(ChatRole.USER, "Onde ele nasceu?"));
 
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(
-                new OpenAIRequest("gpt-5.6-luna", AssistantInstructions.DEFAULT, message)));
+                OpenaiService.createRequest(messages, AssistantInstructions.DEFAULT)));
 
         assertEquals("gpt-5.6-luna", json.get("model").asText());
         assertEquals(AssistantInstructions.DEFAULT, json.get("instructions").asText());
-        assertEquals(message, json.get("input").asText());
+        assertEquals(3, json.get("input").size());
+        assertEquals("user", json.get("input").get(0).get("role").asText());
+        assertEquals(messages.get(0).content(), json.get("input").get(0).get("content").asText());
+        assertEquals("assistant", json.get("input").get(1).get("role").asText());
+        assertEquals("Resposta anterior", json.get("input").get(1).get("content").asText());
+        assertEquals("user", json.get("input").get(2).get("role").asText());
+        assertEquals("Onde ele nasceu?", json.get("input").get(2).get("content").asText());
+        assertNull(json.get("system"));
+    }
+
+    @Test
+    void rejectsMissingMessagesOrInstructionsBeforeCallingOpenAI() {
+        List<ChatMessageDTO> messages = List.of(
+                new ChatMessageDTO(ChatRole.USER, "Mensagem válida"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> OpenaiService.createRequest(null, AssistantInstructions.DEFAULT));
+        assertThrows(IllegalArgumentException.class,
+                () -> OpenaiService.createRequest(List.of(), AssistantInstructions.DEFAULT));
+        assertThrows(IllegalArgumentException.class,
+                () -> OpenaiService.createRequest(messages, " "));
     }
 
     @Test

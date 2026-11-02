@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Telegiado",
-  description: "Interface do assistente virtual do Telegiado",
+  title: "Jarvas",
+  description: "Interface do assistente virtual do Jarvas",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

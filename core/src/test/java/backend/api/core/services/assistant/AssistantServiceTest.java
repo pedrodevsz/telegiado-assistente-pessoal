@@ -6,10 +6,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
+import backend.api.core.dtos.chat.ChatMessageDTO;
 import backend.api.core.dtos.chat.ChatRequestDTO;
 import backend.api.core.dtos.chat.ChatResponseDTO;
+import backend.api.core.dtos.chat.ChatRole;
 import backend.api.core.services.openai.OpenaiService;
 
 class AssistantServiceTest {
@@ -18,14 +22,19 @@ class AssistantServiceTest {
     void sendsInstructionsSeparatelyFromUserMessage() {
         OpenaiService openaiService = mock(OpenaiService.class);
         AssistantService assistantService = new AssistantService(openaiService);
-        ChatRequestDTO request = new ChatRequestDTO("O que é uma API?");
+        List<ChatMessageDTO> messages = List.of(
+                new ChatMessageDTO(ChatRole.USER, "Quem foi Albert Einstein?"),
+                new ChatMessageDTO(ChatRole.ASSISTANT, "Albert Einstein foi um físico teórico."),
+                new ChatMessageDTO(ChatRole.USER, "Onde ele nasceu?"));
+        ChatRequestDTO request = new ChatRequestDTO(messages);
 
-        when(openaiService.sendMessage(request.message(), AssistantInstructions.DEFAULT))
-                .thenReturn("Uma API é uma forma de dois sistemas se comunicarem.");
+        when(openaiService.sendMessages(messages, AssistantInstructions.DEFAULT))
+                .thenReturn("Ele nasceu em Ulm, na Alemanha.");
 
         ChatResponseDTO response = assistantService.chat(request);
 
-        assertEquals("Uma API é uma forma de dois sistemas se comunicarem.", response.response());
-        verify(openaiService).sendMessage(eq(request.message()), eq(AssistantInstructions.DEFAULT));
+        assertEquals(ChatRole.ASSISTANT, response.message().role());
+        assertEquals("Ele nasceu em Ulm, na Alemanha.", response.message().content());
+        verify(openaiService).sendMessages(eq(messages), eq(AssistantInstructions.DEFAULT));
     }
 }
