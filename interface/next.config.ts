@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
         source: "/api/assistant/chat",
         destination: `${process.env.BACKEND_URL ?? "http://localhost:8080"}/api/assistant/chat`,
       },
+      {
+        source: "/api/assistant/transcriptions",
+        destination: `${process.env.BACKEND_URL ?? "http://localhost:8080"}/api/assistant/transcriptions`,
+      },
+      {
+        source: "/api/assistant/speech",
+        destination: `${process.env.BACKEND_URL ?? "http://localhost:8080"}/api/assistant/speech`,
+      },
     ];
   },
 };

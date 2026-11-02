@@ -4,14 +4,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import backend.api.core.dtos.chat.ChatRequestDTO;
 import backend.api.core.dtos.chat.ChatResponseDTO;
 import backend.api.core.dtos.speech.SpeechRequestDTO;
+import backend.api.core.dtos.transcription.TranscriptionResponseDTO;
 import backend.api.core.services.assistant.AssistantService;
 import backend.api.core.services.openai.TextToSpeechService;
+import backend.api.core.services.openai.TranscriptionService;
 import jakarta.validation.Valid;
 
 @RestController
@@ -19,12 +23,15 @@ import jakarta.validation.Valid;
 public class AssistantController {
     private final AssistantService assistantService;
     private final TextToSpeechService textToSpeechService;
+    private final TranscriptionService transcriptionService;
 
     public AssistantController(
             AssistantService assistantService,
-            TextToSpeechService textToSpeechService) {
+            TextToSpeechService textToSpeechService,
+            TranscriptionService transcriptionService) {
         this.assistantService = assistantService;
         this.textToSpeechService = textToSpeechService;
+        this.transcriptionService = transcriptionService;
     }
 
     @PostMapping("/chat")
@@ -44,5 +51,11 @@ public class AssistantController {
                 .contentType(MediaType.parseMediaType("audio/mpeg"))
                 .contentLength(audio.length)
                 .body(audio);
+    }
+
+    @PostMapping(value = "/transcriptions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<TranscriptionResponseDTO> transcribe(
+            @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.ok(transcriptionService.transcribe(file));
     }
 }

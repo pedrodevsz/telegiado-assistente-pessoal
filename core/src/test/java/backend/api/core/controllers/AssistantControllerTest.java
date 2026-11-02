@@ -3,6 +3,7 @@ package backend.api.core.controllers;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,13 +13,18 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
 
 import backend.api.core.dtos.chat.ChatMessageDTO;
 import backend.api.core.dtos.chat.ChatResponseDTO;
 import backend.api.core.dtos.chat.ChatRole;
+import backend.api.core.dtos.transcription.TranscriptionResponseDTO;
 import backend.api.core.controllers.assistant.AssistantController;
 import backend.api.core.services.assistant.AssistantService;
+import backend.api.core.services.openai.InvalidAudioFileException;
 import backend.api.core.services.openai.TextToSpeechService;
+import backend.api.core.services.openai.TranscriptionService;
+import org.springframework.http.HttpStatus;
 
 @WebMvcTest(AssistantController.class)
 class AssistantControllerTest {
@@ -31,6 +37,9 @@ class AssistantControllerTest {
 
     @MockitoBean
     private TextToSpeechService textToSpeechService;
+
+    @MockitoBean
+    private TranscriptionService transcriptionService;
 
     @Test
     void returnsChatResponseForValidConversation() throws Exception {
@@ -184,5 +193,63 @@ class AssistantControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"text\":\"\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void returnsTranscriptionForValidAudioFile() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "question.webm", "audio/webm", new byte[] { 1, 2, 3 });
+        when(transcriptionService.transcribe(any()))
+                .thenReturn(new TranscriptionResponseDTO("Quem foi Albert Einstein?"));
+
+        mockMvc.perform(multipart("/api/assistant/transcriptions").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.text").value("Quem foi Albert Einstein?"));
+    }
+
+    @Test
+    void rejectsMissingAudioFile() throws Exception {
+        mockMvc.perform(multipart("/api/assistant/transcriptions"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("O arquivo de áudio é obrigatório."));
+    }
+
+    @Test
+    void rejectsEmptyAudioFile() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "empty.wav", "audio/wav", new byte[0]);
+        when(transcriptionService.transcribe(any())).thenThrow(new InvalidAudioFileException(
+                HttpStatus.BAD_REQUEST,
+                "O arquivo de áudio é obrigatório e não pode estar vazio."));
+
+        mockMvc.perform(multipart("/api/assistant/transcriptions").file(file))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
+    }
+
+    @Test
+    void rejectsAudioFileAboveLimit() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "large.mp3", "audio/mpeg", new byte[] { 1 });
+        when(transcriptionService.transcribe(any())).thenThrow(new InvalidAudioFileException(
+                HttpStatus.CONTENT_TOO_LARGE,
+                "O arquivo de áudio não pode exceder 25 MB."));
+
+        mockMvc.perform(multipart("/api/assistant/transcriptions").file(file))
+                .andExpect(status().isContentTooLarge())
+                .andExpect(jsonPath("$.error").exists());
+    }
+
+    @Test
+    void rejectsUnsupportedAudioFormat() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "notes.txt", "text/plain", new byte[] { 1 });
+        when(transcriptionService.transcribe(any())).thenThrow(new InvalidAudioFileException(
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "Formato de áudio não aceito."));
+
+        mockMvc.perform(multipart("/api/assistant/transcriptions").file(file))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.error").exists());
     }
 }
