@@ -1,5 +1,9 @@
 package backend.api.core.services.openai;
 
+import java.time.Duration;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -10,9 +14,6 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
-import java.util.List;
-
 import backend.api.core.dtos.chat.ChatMessageDTO;
 import backend.api.core.dtos.openai.OpenAIRequest;
 import backend.api.core.dtos.openai.OpenAIResponse;
@@ -21,10 +22,13 @@ import backend.api.core.dtos.openai.OpenAIResponse;
 public class OpenaiService {
 
     private final RestClient restClient;
+    private final String chatModel;
 
+    @Autowired
     public OpenaiService(
             RestClient.Builder restClientBuilder,
-            @Value("${openai.api-key}") String apiKey) {
+            @Value("${openai.api-key}") String apiKey,
+            @Value("${openai.chat-model:gpt-6-luna}") String chatModel) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofSeconds(10));
         requestFactory.setReadTimeout(Duration.ofSeconds(60));
@@ -39,10 +43,16 @@ public class OpenaiService {
                         HttpHeaders.CONTENT_TYPE,
                         MediaType.APPLICATION_JSON_VALUE)
                 .build();
+        this.chatModel = chatModel;
+    }
+
+    OpenaiService(RestClient restClient, String chatModel) {
+        this.restClient = restClient;
+        this.chatModel = chatModel;
     }
 
     public String sendMessages(List<ChatMessageDTO> messages, String instructions) {
-        OpenAIRequest request = createRequest(messages, instructions);
+        OpenAIRequest request = createRequest(messages, instructions, chatModel);
         OpenAIResponse response;
         try {
             response = restClient
@@ -70,12 +80,18 @@ public class OpenaiService {
         return extractText(response);
     }
 
-    static OpenAIRequest createRequest(List<ChatMessageDTO> messages, String instructions) {
+    static OpenAIRequest createRequest(
+            List<ChatMessageDTO> messages,
+            String instructions,
+            String chatModel) {
         if (messages == null || messages.isEmpty()) {
             throw new IllegalArgumentException("Messages cannot be null or empty");
         }
         if (instructions == null || instructions.isBlank()) {
             throw new IllegalArgumentException("Instructions cannot be null or blank");
+        }
+        if (chatModel == null || chatModel.isBlank()) {
+            throw new IllegalArgumentException("Chat model cannot be null or blank");
         }
 
         List<OpenAIRequest.Message> input = messages.stream()
@@ -83,7 +99,7 @@ public class OpenaiService {
                         message.role().apiValue(),
                         message.content()))
                 .toList();
-        return new OpenAIRequest("gpt-5.6-luna", instructions, input);
+        return new OpenAIRequest(chatModel, instructions, input);
     }
 
     static String extractText(OpenAIResponse response) {
