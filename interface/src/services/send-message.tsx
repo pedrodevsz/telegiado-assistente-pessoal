@@ -20,12 +20,13 @@ export type ChatResponse = {
 };
 
 export async function sendMessage(messages: ChatMessage[]): Promise<ChatResponse> {
+    const requestMessages = messages.map(({ role, content }) => ({ role, content }));
     const response = await fetch(messagesEndpoint, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ messages } satisfies ChatRequest),
+        body: JSON.stringify({ messages: requestMessages } satisfies ChatRequest),
     });
 
     if (!response.ok) {
