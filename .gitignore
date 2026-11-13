@@ -1,3 +1,6 @@
 .env.example
+.env
 .env.local
+**/.env
+**/.env.local
 .tasks.md
